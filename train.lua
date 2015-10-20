@@ -138,6 +138,8 @@ else
     protos = {}
     if opt.model == 'lstm' then
         protos.rnn = LSTM.lstm(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
+        graph.dot(protos.rnn.fg, "lstm", "/home/thenghiapham/char-rnn_fw")
+        graph.dot(protos.rnn.bg, "lstm", "/home/thenghiapham/char-rnn_bw")
     elseif opt.model == 'gru' then
         protos.rnn = GRU.gru(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
     elseif opt.model == 'rnn' then
