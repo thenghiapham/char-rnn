@@ -120,6 +120,7 @@ if string.len(opt.init_from) > 0 then
     print('loading an LSTM from checkpoint ' .. opt.init_from)
     local checkpoint = torch.load(opt.init_from)
     protos = checkpoint.protos
+    
     -- make sure the vocabs are the same
     local vocab_compatible = true
     for c,i in pairs(checkpoint.vocab) do 
@@ -127,6 +128,7 @@ if string.len(opt.init_from) > 0 then
             vocab_compatible = false
         end
     end
+    
     assert(vocab_compatible, 'error, the character vocabulary for this dataset and the one in the saved checkpoint are not the same. This is trouble.')
     -- overwrite model settings based on checkpoint to ensure compatibility
     print('overwriting rnn_size=' .. checkpoint.opt.rnn_size .. ', num_layers=' .. checkpoint.opt.num_layers .. ' based on the checkpoint.')
@@ -134,6 +136,7 @@ if string.len(opt.init_from) > 0 then
     opt.num_layers = checkpoint.opt.num_layers
     do_random_init = false
 else
+    
     print('creating an ' .. opt.model .. ' with ' .. opt.num_layers .. ' layers')
     protos = {}
     if opt.model == 'lstm' then
@@ -170,12 +173,33 @@ end
 
 -- put the above things into one flattened parameters tensor
 params, grad_params = model_utils.combine_all_parameters(protos.rnn)
+---- Nghia: according to my imagination
+-- this will move all the parameters into 1 freaking large flat area of memory
+-- but the keep the boundary of parameters separate.
+-- So that it's easier/faster to add them when
+--   + summing the grad
+--   + mul with learning rate
+--   + updating the weight
+-- After that, when cloning the prototype model
+-- since all of them will point to the same memory (because we get rid of the
+-- new one, and point to the old one), everything will still be flat
+-- (very smart these people)
+-- 
+-- I also assume that all the operations (sum, mul) are in-place
 
+
+
+---- Nghia: check params' type for this uniform crap
 -- initialization
 if do_random_init then
 params:uniform(-0.08, 0.08) -- small numbers uniform
 end
 
+
+---- Nghia: after this
+-- clones.rnn = {protos.rnn} * T
+-- clones.criterion = {protos.criterion} * T
+-- I assume, criterion doesn-t have any gradParameter
 print('number of parameters in the model: ' .. params:nElement())
 -- make a bunch of clones after flattening, as that reallocates memory
 clones = {}
@@ -183,6 +207,9 @@ for name,proto in pairs(protos) do
     print('cloning ' .. name)
     clones[name] = model_utils.clone_many_times(proto, opt.seq_length, not proto.parameters)
 end
+
+
+---- Nghia: local function to evaluate on the validation set?
 
 -- evaluate the loss over an entire split
 function eval_split(split_index, max_batches)
@@ -224,6 +251,7 @@ function eval_split(split_index, max_batches)
     return loss
 end
 
+
 -- do fwd/bwd and return loss, grad_params
 local init_state_global = clone_list(init_state)
 function feval(x)
@@ -233,6 +261,8 @@ function feval(x)
     grad_params:zero()
 
     ------------------ get minibatch -------------------
+    -- Nghia: integers can't be cuda() but can be cl()?
+    -- check this next_batch thing
     local x, y = loader:next_batch(1)
     if opt.gpuid >= 0 and opt.opencl == 0 then -- ship the input arrays to GPU
         -- have to convert to float because integers can't be cuda()'d
@@ -249,9 +279,15 @@ function feval(x)
     local loss = 0
     for t=1,opt.seq_length do
         clones.rnn[t]:training() -- make sure we are in correct mode (this is cheap, sets flag)
+        
+        ---- Nghia: output lst will be {c1,h1,c2,h2..., ct,ht,prediction}
+        -- init state is {c1,h1,c2,h2...,ct,ht}
         local lst = clones.rnn[t]:forward{x[{{}, t}], unpack(rnn_state[t-1])}
         rnn_state[t] = {}
-        for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end -- extract the state, without output
+        for i=1,#init_state do
+            -- insert(a,b) is like a.append(b) in python 
+            table.insert(rnn_state[t], lst[i])
+        end -- extract the state, without output
         predictions[t] = lst[#lst] -- last element is the prediction
         loss = loss + clones.criterion[t]:forward(predictions[t], y[{{}, t}])
     end
@@ -261,6 +297,8 @@ function feval(x)
     local drnn_state = {[opt.seq_length] = clone_list(init_state, true)} -- true also zeros the clones
     for t=opt.seq_length,1,-1 do
         -- backprop through loss, and softmax/linear
+        ---- Nghia: backward would automaticly adding grad to paraGrad
+        -- and return {gradX, gradC1, gradH1,..., gradCt, gradHt}
         local doutput_t = clones.criterion[t]:backward(predictions[t], y[{{}, t}])
         table.insert(drnn_state[t], doutput_t)
         local dlst = clones.rnn[t]:backward({x[{{}, t}], unpack(rnn_state[t-1])}, drnn_state[t])
@@ -292,6 +330,10 @@ for i = 1, iterations do
     local epoch = i / loader.ntrain
 
     local timer = torch.Timer()
+    
+    ---- Nghia: update params based on grad and loss
+    -- using this fancy RMS prop
+    -- see: http://climin.readthedocs.org/en/latest/rmsprop.html
     local _, loss = optim.rmsprop(feval, params, optim_state)
     local time = timer:time().real
 

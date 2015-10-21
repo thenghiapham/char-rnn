@@ -126,6 +126,11 @@ function model_utils.clone_many_times(net, T)
         paramsNoGrad = net:parametersNoGrad()
     end
 
+    ---- Nghia:
+    -- write and read from MemoryFile can create a deep/recursive copy
+    -- of an object
+    -- therefore after cloning, we need to assign the param, grad, paramnograd
+    -- back to the clones so that they share the same weights and weightGrads
     local mem = torch.MemoryFile("w"):binary()
     mem:writeObject(net)
 
@@ -152,7 +157,11 @@ function model_utils.clone_many_times(net, T)
         end
 
         clones[t] = clone
+        
         collectgarbage()
+        ---- Nghia: to collect all the poor weights and weightGrads that are no 
+        -- longer pointed to by anyone
+        
     end
 
     mem:close()
