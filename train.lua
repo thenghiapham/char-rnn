@@ -141,8 +141,8 @@ else
     protos = {}
     if opt.model == 'lstm' then
         protos.rnn = LSTM.lstm(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
-        graph.dot(protos.rnn.fg, "lstm", "/home/thenghiapham/char-rnn_fw")
-        graph.dot(protos.rnn.bg, "lstm", "/home/thenghiapham/char-rnn_bw")
+        graph.dot(protos.rnn.fg, "lstm", "/home/nghia/char-rnn_fw")
+        graph.dot(protos.rnn.bg, "lstm", "/home/nghia/char-rnn_bw")
     elseif opt.model == 'gru' then
         protos.rnn = GRU.gru(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
     elseif opt.model == 'rnn' then
@@ -172,7 +172,8 @@ if opt.gpuid >= 0 and opt.opencl == 1 then
 end
 
 -- put the above things into one flattened parameters tensor
-params, grad_params = model_utils.combine_all_parameters(protos.rnn)
+-- params, grad_params = model_utils.combine_all_parameters(protos.rnn)
+params, grad_params = protos.rnn:getParameters()
 ---- Nghia: according to my imagination
 -- this will move all the parameters into 1 freaking large flat area of memory
 -- but the keep the boundary of parameters separate.
@@ -186,11 +187,17 @@ params, grad_params = model_utils.combine_all_parameters(protos.rnn)
 -- (very smart these people)
 -- 
 -- I also assume that all the operations (sum, mul) are in-place
-
+---- TODO: Nghia, find out why don't they use the freaking getParameters()
+-- well, can try right here
+-- Documentation says "Since the storage of every weight and gradWeight is 
+-- changed, this function should be called only once on a given network", which
+-- means this getParameters() also moves everything? This can be test to find
+-- out
 
 
 ---- Nghia: check params' type for this uniform crap
 -- initialization
+-- magic number 0.08
 if do_random_init then
 params:uniform(-0.08, 0.08) -- small numbers uniform
 end
@@ -334,6 +341,13 @@ for i = 1, iterations do
     ---- Nghia: update params based on grad and loss
     -- using this fancy RMS prop
     -- see: http://climin.readthedocs.org/en/latest/rmsprop.html
+    -- 
+    -- Nghia: optim_state looks like config
+    -- the freaking code from optim makes it look like if no state is given
+    -- they'll use config as state
+    -- (well, it's not like we use it for anything)
+    -- 
+    -- Note: rmsprop both returns x and modifies it?
     local _, loss = optim.rmsprop(feval, params, optim_state)
     local time = timer:time().real
 
