@@ -1,0 +1,17 @@
+goal:
+   + fun attention model
+   + predicting a class given a sentence and some input (a word in the sentence, a pair of words, e.g. role labeling with the attention vector instead of the cnn, does it make any sense?)
+some detail:
+   + bi-directional LSTM model
+   + attention by using [h->[i],h<-[i],input], more specifically, e^(Wa1 * h-> + Wa2 * h<- + Wa3 + input + ba)
+     (maybe this is a bit too much)
+implementation step:
+   + lstm "module" with no input
+   + attention module with lstm as components
+     - need to know how to inherit from nngraph gmodule, or maybe just nn first
+     - include backward, forward
+     - how to do flatten crap
+       * potential problem, not pointing to 1 anymore if this flatten thing is called after cloning
+       * maybe can update separately? (or check somehow)
+       * the attention thing is a bit similar to softmax
+       * call this, then clone? (probably shouldn't make it a module then)

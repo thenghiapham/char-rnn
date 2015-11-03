@@ -348,6 +348,8 @@ for i = 1, iterations do
     -- (well, it's not like we use it for anything)
     -- 
     -- Note: rmsprop both returns x and modifies it?
+    -- So this rmsprop thing is not adagrad, i.e. you need a learningRate decay
+    -- where in adagrad, it does seem that it's innate in the formula grad/ mem
     local _, loss = optim.rmsprop(feval, params, optim_state)
     local time = timer:time().real
 
