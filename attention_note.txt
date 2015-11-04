@@ -15,3 +15,14 @@ implementation step:
        * maybe can update separately? (or check somehow)
        * the attention thing is a bit similar to softmax
        * call this, then clone? (probably shouldn't make it a module then)
+       
+ new implementation steps:
+   + linear attention module
+   + lstm with no input
+   + merge params, gradParams
+   + clone lstm 
+   -- free style module create
+      * forward
+      * backward
+   -- voila 
+   

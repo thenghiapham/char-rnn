@@ -1,6 +1,6 @@
 
-local NewLSTM = {}
-function NewLSTM.lstm(input_size, rnn_size, n, dropout)
+local BareLSTM = {}
+function BareLSTM.lstm(input_size, rnn_size, n, dropout)
   dropout = dropout or 0 
 
   -- there will be 2*n+1 inputs
@@ -65,5 +65,5 @@ function NewLSTM.lstm(input_size, rnn_size, n, dropout)
   return nn.gModule(inputs, outputs)
 end
 
-return NewLSTM
+return BareLSTM
 
