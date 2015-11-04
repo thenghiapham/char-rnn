@@ -12,7 +12,7 @@ function buildModel()
     --local factor = input[1]
     --local attentee = input[2]
     -- no need to separate them
-    local linearAttention = nn.Attention(5,4)(inputs)
+    local linearAttention = nn.LinearAttention(5,4)(inputs)
     local attention = nn.SoftMax()(linearAttention)
     local outputs = {}
     table.insert(outputs,attention)

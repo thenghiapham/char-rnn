@@ -1,11 +1,11 @@
-local Attention, parent = torch.class('nn.Attention', 'nn.Module')
+local LinearAttention, parent = torch.class('nn.LinearAttention', 'nn.Module')
 
 ----
 -- Now I assume input is a table, including
 --   - 1 vector (size k)
 --   - 1 matrix (size m, l) where m is the size of each individual small attentee
 --     vectors and l is the number of these vectors
-function Attention:__init(factorSize, attenteeSize)
+function LinearAttention:__init(factorSize, attenteeSize)
    parent.__init(self)
    self.gradInput = {torch.Tensor(), torch.Tensor()}
    
@@ -19,7 +19,7 @@ function Attention:__init(factorSize, attenteeSize)
    self:reset()
 end
 
-function Attention:reset(stdv)
+function LinearAttention:reset(stdv)
    if stdv then
       stdv = stdv * math.sqrt(3)
    else
@@ -47,12 +47,12 @@ function Attention:reset(stdv)
    return self
 end
 
-function Attention:parameters()
+function LinearAttention:parameters()
    return {self.weightFactor, self.weightAttentee, self.bias}, 
           {self.gradWeightFactor, self.gradWeightAttentee, self.gradBias}
 end
 
-function Attention:updateOutput(input)
+function LinearAttention:updateOutput(input)
    -- TODO:
    -- understand why they don't have this guy here 
    -- self.output:zero()
@@ -76,7 +76,7 @@ end
 
 
 
-function Attention:updateGradInput(input, gradOutput)
+function LinearAttention:updateGradInput(input, gradOutput)
    local factor = input[1]
    local attentee = input[2]
    
@@ -99,7 +99,7 @@ function Attention:updateGradInput(input, gradOutput)
 end
 
 
-function Attention:accGradParameters(input, gradOutput, scale)
+function LinearAttention:accGradParameters(input, gradOutput, scale)
    scale = scale or 1
    local factor = input[1]
    local attentee = input[2]
@@ -110,10 +110,10 @@ function Attention:accGradParameters(input, gradOutput, scale)
 end
 
 -- we do not need to accumulate parameters when sharing
-Attention.sharedAccUpdateGradParameters = Attention.accUpdateGradParameters
+LinearAttention.sharedAccUpdateGradParameters = LinearAttention.accUpdateGradParameters
 
 
-function Attention:__tostring__()
+function LinearAttention:__tostring__()
   return torch.type(self) ..
       string.format('(%d and %d -> attention)', self.weightFactor:size(1), self.weightAttentee:size(1))
 end

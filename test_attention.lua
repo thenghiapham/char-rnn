@@ -22,7 +22,7 @@ end)
 print("attentee:")
 print(attentee)
 
-local attentionLayer = nn.Attention(5,4)
+local attentionLayer = nn.LinearAttention(5,4)
 local input = {factor, attentee}
 
 local output = attentionLayer:forward(input)
