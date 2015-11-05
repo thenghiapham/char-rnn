@@ -55,6 +55,7 @@ end
 function LinearAttention:updateOutput(input)
    -- TODO:
    -- understand why they don't have this guy here 
+   -- if don't understand, uncomment the line below
    -- self.output:zero()
    local factor = input[1]
    local attentee = input[2]
