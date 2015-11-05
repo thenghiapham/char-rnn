@@ -1,4 +1,4 @@
-
+-- this uses word embedding and not one-hot (like in char case)
 local BareLSTM = {}
 function BareLSTM.lstm(input_size, rnn_size, n, dropout)
   dropout = dropout or 0 

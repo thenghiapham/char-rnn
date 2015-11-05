@@ -3,6 +3,10 @@
 -- require 'LinearAttention'
 -- require 'MVMul'
 
+---- here everything is word embedding and not char embedding
+-- therefore, the input is not a one hot vector but the word embedding
+
+
 local AttentionLSTM = {}
 
 function AttentionLSTM.softmax_attention_layer(factor_size, attentee_size)

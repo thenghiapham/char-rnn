@@ -25,4 +25,9 @@ implementation step:
       * forward
       * backward
    -- voila 
+ 
+ TODO Nov 4, 2015
+ - read LookupTable (for word embedding)
+ - also look for Convolution
+ - find some data to try the attention on, some task that use RNN final vector as input
    
