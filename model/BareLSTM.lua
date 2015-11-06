@@ -1,6 +1,9 @@
 -- this uses word embedding and not one-hot (like in char case)
+-- assuming word embedding size = rnn size
 local BareLSTM = {}
-function BareLSTM.lstm(input_size, rnn_size, n, dropout)
+function BareLSTM.lstm(rnn_size, n, dropout)
+  -- TODO: try to put the embedding layers here as parameters
+  -- then clone both forward and backward after flattening
   dropout = dropout or 0 
 
   -- there will be 2*n+1 inputs
@@ -11,7 +14,7 @@ function BareLSTM.lstm(input_size, rnn_size, n, dropout)
     table.insert(inputs, nn.Identity()()) -- prev_h[L]
   end
 
-  local x, input_size_L
+  local x
   local outputs = {}
   
   -- Nghia: keeping the n layers implementation, but probably just use 1 for now
@@ -21,15 +24,13 @@ function BareLSTM.lstm(input_size, rnn_size, n, dropout)
     local prev_c = inputs[L*2]
     -- the input to this layer
     if L == 1 then 
-      x = OneHot(input_size)(inputs[1])
-      input_size_L = input_size
+      x = inputs[1]
     else 
       x = outputs[(L-1)*2] 
       if dropout > 0 then x = nn.Dropout(dropout)(x) end -- apply dropout, if any
-      input_size_L = rnn_size
     end
     -- evaluate the input sums at once for efficiency
-    local i2h = nn.Linear(input_size_L, 4 * rnn_size)(x)
+    local i2h = nn.Linear(rnn_size, 4 * rnn_size)(x)
     local h2h = nn.Linear(rnn_size, 4 * rnn_size)(prev_h)
     local all_input_sums = nn.CAddTable()({i2h, h2h})
 
