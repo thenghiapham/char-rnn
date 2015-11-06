@@ -30,4 +30,13 @@ implementation step:
  - read LookupTable (for word embedding)
  - also look for Convolution
  - find some data to try the attention on, some task that use RNN final vector as input
+ 
+ TODO Nov 5, 2015
+ - finish the module
+ - grad check
+ - find some data to run it on
+ 
+ TODO Nov 6, 2015
+ - translation model
+ - just for fun
    
