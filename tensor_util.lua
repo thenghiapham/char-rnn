@@ -9,11 +9,13 @@ function tensor_utils.merge(vector_list1, vector_list2)
     return result
 end
 
-function tensor_utils.vector_cut(matrix, pos_cut)
+function tensor_utils.vector_cut(matrix)
+    
     local matrix_t = matrix:t()
     local vector_list1 = {}
     local vector_list2 = {}
     local length = matrix:size(1)
+    local pos_cut = length / 2
     local vector2_length = length - pos_cut
     for i = 1,matrix:size(2) do
         table.insert(vector_list1, matrix:sub(1,pos_cut,i,i):resize(pos_cut))
