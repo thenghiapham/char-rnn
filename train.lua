@@ -243,6 +243,8 @@ function eval_split(split_index, max_batches)
         -- forward pass
         for t=1,opt.seq_length do
             clones.rnn[t]:evaluate() -- for dropout proper functioning
+            ---- is it just x[t] but they want to avoid some problem so they
+            -- put this weird index
             local lst = clones.rnn[t]:forward{x[{{}, t}], unpack(rnn_state[t-1])}
             rnn_state[t] = {}
             for i=1,#init_state do table.insert(rnn_state[t], lst[i]) end
