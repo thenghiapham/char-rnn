@@ -7,6 +7,7 @@ local LinearAttention, parent = torch.class('nn.LinearAttention', 'nn.Module')
 --     vectors and l is the number of these vectors
 function LinearAttention:__init(factorSize, attenteeSize)
    parent.__init(self)
+
    self.gradInput = {torch.Tensor(), torch.Tensor()}
    
    self.weightFactor = torch.Tensor(factorSize)
@@ -15,7 +16,6 @@ function LinearAttention:__init(factorSize, attenteeSize)
    self.gradWeightFactor = torch.Tensor(factorSize)
    self.gradWeightAttentee = torch.Tensor(attenteeSize)
    self.gradBias = torch.Tensor(1)
-   
    self:reset()
 end
 
@@ -59,6 +59,7 @@ function LinearAttention:updateOutput(input)
    -- self.output:zero()
    local factor = input[1]
    local attentee = input[2]
+   
    if attentee:dim() == 2 and factor:dim() == 1 then
       local nframe = attentee:size(2)
       local nElement = self.output:nElement()

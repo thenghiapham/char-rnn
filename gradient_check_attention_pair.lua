@@ -1,3 +1,8 @@
+require 'torch'
+require 'nn'
+require 'nngraph'
+require 'optim'
+local FakeLoader = require 'model.nghia_util'
 
 local function parse_opt()
   local cmd = torch.CmdLine()
@@ -8,10 +13,13 @@ local function parse_opt()
   -- data
   cmd:option('-data_dir','data/tinyshakespeare','data directory. Should contain the file input.txt with input data')
   -- model params
-  cmd:option('-rnn_size', 128, 'size of LSTM internal state')
-  cmd:option('-num_layers', 2, 'number of layers in the LSTM')
+  cmd:option('-vocab_size',4,'number of words in the vocab')
+  cmd:option('-rnn_size', 5, 'size of LSTM internal state')
+  cmd:option('-num_layers', 1, 'number of layers in the LSTM')
+  cmd:option('-output_size', 3, 'number of layers in the LSTM')
   cmd:option('-model', 'lstm', 'lstm,gru or rnn')
-  -- optimization
+    -- optimization
+  cmd:option('-max_seq_length',50,'maximum sequence length')
   cmd:option('-learning_rate',2e-3,'learning rate')
   cmd:option('-learning_rate_decay',0.97,'learning rate decay')
   cmd:option('-learning_rate_decay_after',10,'in number of epochs, when to start decaying the learning rate')
@@ -34,7 +42,7 @@ local function parse_opt()
   cmd:option('-checkpoint_dir', 'cv', 'output directory where checkpoints get written')
   cmd:option('-savefile','lstm','filename to autosave the checkpont to. Will be inside checkpoint_dir/')
   -- GPU/CPU
-  cmd:option('-gpuid',0,'which gpu to use. -1 = use CPU')
+  cmd:option('-gpuid',-1,'which gpu to use. -1 = use CPU')
   cmd:option('-opencl',0,'use OpenCL (instead of CUDA)')
   cmd:text()
   
@@ -44,3 +52,20 @@ local function parse_opt()
 end
 
 local opt = parse_opt()
+local loader = FakeLoader.create()
+opt.loader = loader
+local AttentionLSTM = require 'model.AttentionLSTM'
+AttentionLSTM.prepare_training(opt)
+local params = AttentionLSTM.network.params
+local grad_params = AttentionLSTM.network.grad_params
+print(#params)
+print(#grad_params)
+params:uniform(-0.2, 0.2)
+local diff,dC,dC_est = optim.checkgrad(AttentionLSTM.feval, params, 1e-2)
+--eval(params)
+print(diff)
+print("realGrad")
+print(dC:sum())
+
+print("numericGrad")
+print(dC_est)

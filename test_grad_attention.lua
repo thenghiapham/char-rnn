@@ -1,7 +1,7 @@
 require 'torch'
 require 'nn'
 require 'nngraph'
-require 'model.Attention'
+require 'model.LinearAttention'
 require 'optim'
 
 function buildModel()

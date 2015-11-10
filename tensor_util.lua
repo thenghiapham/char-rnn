@@ -1,15 +1,16 @@
-local tensor_utils
+local tensor_utils = {}
 
 function tensor_utils.merge(vector_list1, vector_list2)
     ---- here we assume #vector_list1 == #vector_list2
     -- we concat 
     local matrix1 = torch.cat(vector_list1,2)
+    
     local matrix2 = torch.cat(vector_list2,2)
     local result = torch.cat(matrix1, matrix2, 1)
     return result
 end
 
-function tensor_utils.vector_cut(matrix)
+function tensor_utils.cut_vectors(matrix)
     
     local matrix_t = matrix:t()
     local vector_list1 = {}
@@ -21,4 +22,7 @@ function tensor_utils.vector_cut(matrix)
         table.insert(vector_list1, matrix:sub(1,pos_cut,i,i):resize(pos_cut))
         table.insert(vector_list2, matrix:sub(pos_cut + 1,length,i,i):resize(vector2_length))
     end
+    return vector_list1, vector_list2
 end
+
+return tensor_utils
