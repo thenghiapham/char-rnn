@@ -56,7 +56,7 @@ function LinearAttention:updateOutput(input)
    -- TODO:
    -- understand why they don't have this guy here 
    -- if don't understand, uncomment the line below
-   -- self.output:zero()
+   self.output:zero()
    local factor = input[1]
    local attentee = input[2]
    
@@ -81,7 +81,6 @@ end
 function LinearAttention:updateGradInput(input, gradOutput)
    local factor = input[1]
    local attentee = input[2]
-   
    if self.gradInput then
       local gradFactor = self.gradInput[1]
       local gradAttentee = self.gradInput[2]
@@ -89,13 +88,16 @@ function LinearAttention:updateGradInput(input, gradOutput)
       local attenteeElement = gradAttentee:nElement()
       self.gradInput[1]:resizeAs(factor)
       self.gradInput[2]:resizeAs(attentee)
-      if self.gradInput[2]:nElement() ~= attenteeElement then
-         self.gradInput[1]:zero()
-         self.gradInput[2]:zero()
-      end
+      self.gradInput[1]:zero()
+      self.gradInput[2]:zero()
+--      if self.gradInput[2]:nElement() ~= attenteeElement then
+--         self.gradInput[1]:zero()
+--         self.gradInput[2]:zero()
+--      end
       gradAttentee:addr(1, self.weightAttentee, gradOutput) -- switch if change dimension of attentee
-      gradFactor:add(self.weightFactor, gradOutput:sum())
-      
+--      print(self.weightFactor)
+--      print(gradFactor)
+      gradFactor:add(gradOutput:sum(), self.weightFactor)
       return self.gradInput
    end
 end

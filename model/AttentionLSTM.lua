@@ -81,9 +81,6 @@ function AttentionLSTM.create_network(opt)
     
     if opt.gpuid >= 0 and opt.opencl == 0 then
         for k,v in pairs(network) do
---            print("porting cuda")
---            print(k)
---            print(v)
             v:cuda()
         end
     end
@@ -92,7 +89,7 @@ function AttentionLSTM.create_network(opt)
     end
     
     local params, grad_params = model_utils.combine_all_parameters(network.base_embedding_layer, network.right_rnn, 
-            network.left_rnn, network.attention)
+            network.left_rnn, network.classifier)
     
     -- TODO: add the number of thing here
     network.embedding_clones = model_utils.clone_many_times(network.base_embedding_layer, opt.max_seq_length + 2)
@@ -150,7 +147,6 @@ function AttentionLSTM.feval(x)
     end
     grad_params:zero()
 
-
     -- TODO: change the input/output data
     ------------------ get minibatch -------------------
     -- Nghia: integers can't be cuda() but can be cl()?
@@ -183,7 +179,7 @@ function AttentionLSTM.feval(x)
     local left_state = {[sequence_length+1] = network.init_state_global}
     local predictions = {}           
     local loss = 0
-    
+--    error("Stop here")
     local embeddings = {}
     
     -- get embedding
@@ -192,7 +188,6 @@ function AttentionLSTM.feval(x)
     for t=1,sequence_length do
         embeddings[t] = network.embedding_clones[t]:forward(sequence:sub(t,t)):resize(opt.rnn_size)
     end
-    
     -- TODO: change if necessary
     local pair_embedding1 = network.embedding_clones[sequence_length + 1]:forward(pair:sub(1,1)):resize(opt.rnn_size)
     local pair_embedding2 = network.embedding_clones[sequence_length + 2]:forward(pair:sub(2,2)):resize(opt.rnn_size)
@@ -209,7 +204,6 @@ function AttentionLSTM.feval(x)
         network.embedding_clones[t]:training()
         network.right_clones[t]:training() 
         network.left_clones[t]:training()
-        
         
         ---- Nghia: output lst will be {c1,h1,c2,h2..., ct,ht,prediction}
         -- init state is {c1,h1,c2,h2...,ct,ht}
@@ -229,11 +223,15 @@ function AttentionLSTM.feval(x)
     -- need to merge the two list of tensors
     -- TODO:
     local merge_state = tensor_utils.merge(unpack(attentee))
-    
+--    print(merge_state)
     -- only 1 prediction
-    loss = network.classifier:forward({factor, merge_state, gold})
+--    print("Parameters")
+--    print(network.classifier:parameters()[2])
+--    print("No parameters")
+    loss = network.classifier:forward({factor, merge_state, gold})[1]
 --    print("loss")
 --    print(loss)
+--    error("stop here")
         
     ------------------ BACKWARD PASS -------------------
     -- initialize gradient at time t to be zeros (there's no influence from future)
@@ -253,10 +251,10 @@ function AttentionLSTM.feval(x)
     local dattention = network.classifier:backward({pair, merge_state, gold}, derr)
 --    print("d_attention")
 --    print(dattention[2]:sum())
-    
+--    print(dattention[1])
     local d_merge_state = dattention[2]
     -- TODO: fix this
-    local d_attentee = tensor_utils.cut_vectors(d_merge_state)
+    local d_attentee1, d_attentee2 = tensor_utils.cut_vectors(d_merge_state)
     -- initiziatl dright_state with error back from attention to the last h 
     
     
@@ -265,11 +263,11 @@ function AttentionLSTM.feval(x)
         ---- Nghia: backward would automaticly adding grad to paraGrad
         -- and return {gradX, gradC1, gradH1,..., gradCt, gradHt}
         
-        dright_state[t][2 * num_layers]:add(d_attentee[1][t])
+        dright_state[t][2 * num_layers]:add(d_attentee1[t])
         local drst = network.right_clones[t]:backward({embeddings[t], unpack(right_state[t-1])}, dright_state[t])
         
         left_t = 1 + sequence_length - t
-        dleft_state[left_t][2 * num_layers]:add(d_attentee[1][left_t])
+        dleft_state[left_t][2 * num_layers]:add(d_attentee2[left_t])
         local dlst = network.left_clones[left_t]:backward({embeddings[left_t], unpack(left_state[left_t+1])}, dleft_state[left_t])
         -- k = 1, x
         -- k = 2i: dc[i]
@@ -298,18 +296,22 @@ function AttentionLSTM.feval(x)
     -- TODO: fix this, i.e. deal with sequence
     
     for t=1,sequence_length do
+--        print(dembeddings[t])
         network.embedding_clones[t]:backward(sequence:sub(t,t), dembeddings[t])
     end
     
     local dfactor = dattention[1]
-    network.embedding_clones[sequence_length + 1]:backward(pair[1], dfactor:sub(1,opt.rnn_size))
-    network.embedding_clones[sequence_length + 2]:backward(pair[2], dfactor:sub(opt.rnn_size + 1, 2 * opt.rnn_size))
+--    print("dfactor")
+--    print(dfactor)
+--    error("stop here")
+    network.embedding_clones[sequence_length + 1]:backward(pair:sub(1,1), dfactor:sub(1,opt.rnn_size))
+    network.embedding_clones[sequence_length + 2]:backward(pair:sub(2,2), dfactor:sub(opt.rnn_size + 1, 2 * opt.rnn_size))
         
     -- TODO: backward from pair???
     
     ------------------------ misc ----------------------
     -- clip gradient element-wise
-    grad_params:clamp(-opt.grad_clip, opt.grad_clip)
+    --grad_params:clamp(-opt.grad_clip, opt.grad_clip)
     return loss, grad_params
 end
 

@@ -21,7 +21,7 @@ end
 
 local attentionModel = buildModel()
 local params, gradParams = attentionModel:getParameters()
-
+params:uniform(-0.2, 0.2)
 
 local factor = torch.Tensor(5)
 local attentee = torch.Tensor(4,3)
@@ -51,6 +51,7 @@ output[2] = 0.1
 output[3] = 0.6
 
 local criterion = nn.DistKLDivCriterion()
+
 local function eval(x)
   if x ~= params then
     params:copy(x)
@@ -60,24 +61,80 @@ local function eval(x)
   
   -- forward
   local prediction = attentionModel:forward(input)
-  print("prediction")
-  print(prediction)
   loss = criterion:forward(prediction, output)
   
   -- backward
   local gradPrediction = criterion:backward(prediction, output) 
-  print("gradPrediction")
-  print(gradPrediction)
   local _ = attentionModel:backward(input, gradPrediction)
   
   return loss, gradParams
 end 
 
-local diff,dC,dC_est = optim.checkgrad(eval, params, 1e-7)
+--local diff,dC,dC_est = optim.checkgrad(eval, params, 1e-7)
 --eval(params)
+--print(diff)
+--print("realGrad")
+--print(dC)
+--
+--print("numericGrad")
+--print(dC_est)
+
+
+
+local function eval_attentee(x)
+  if x ~= attentee then
+    attentee:copy(x)
+  end
+  local loss = 0
+  
+  -- forward
+  local prediction = attentionModel:forward(input)
+  loss = criterion:forward(prediction, output)
+  
+  -- backward
+  local gradPrediction = criterion:backward(prediction, output) 
+  local grad_input = attentionModel:backward(input, gradPrediction)
+  
+  return loss, grad_input[2]:resize(12)
+end 
+
+local flat_attentee = torch.Tensor(12)
+attentee:copy(attentee)
+
+local diff,dC,dC_est = optim.checkgrad(eval_attentee, flat_attentee, 1e-7)
 print(diff)
 print("realGrad")
 print(dC)
 
 print("numericGrad")
 print(dC_est)
+
+
+
+
+--local function eval_factor(x)
+--  if x ~= factor then
+--    factor:copy(x)
+--  end
+--  local loss = 0
+--  
+--  -- forward
+--  local prediction = attentionModel:forward(input)
+--  loss = criterion:forward(prediction, output)
+--  
+--  -- backward
+--  local gradPrediction = criterion:backward(prediction, output) 
+--  local grad_input = attentionModel:backward(input, gradPrediction)
+--  print(loss)
+--  return loss, grad_input[1]
+--end 
+--
+--
+--local diff,dC,dC_est = optim.checkgrad(eval_factor, factor, 1e-7)
+----eval(params)
+--print(diff)
+--print("realGrad")
+--print(dC)
+--
+--print("numericGrad")
+--print(dC_est)

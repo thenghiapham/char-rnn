@@ -2,7 +2,13 @@ require 'torch'
 require 'nn'
 require 'nngraph'
 require 'optim'
+require 'util.table_io'
 local FakeLoader = require 'model.nghia_util'
+
+local function file_exists(name)
+   local f=io.open(name,"r")
+   if f~=nil then io.close(f) return true else return false end
+end
 
 local function parse_opt()
   local cmd = torch.CmdLine()
@@ -14,7 +20,7 @@ local function parse_opt()
   cmd:option('-data_dir','data/tinyshakespeare','data directory. Should contain the file input.txt with input data')
   -- model params
   cmd:option('-vocab_size',4,'number of words in the vocab')
-  cmd:option('-rnn_size', 5, 'size of LSTM internal state')
+  cmd:option('-rnn_size', 3, 'size of LSTM internal state')
   cmd:option('-num_layers', 1, 'number of layers in the LSTM')
   cmd:option('-output_size', 3, 'number of layers in the LSTM')
   cmd:option('-model', 'lstm', 'lstm,gru or rnn')
@@ -60,12 +66,24 @@ local params = AttentionLSTM.network.params
 local grad_params = AttentionLSTM.network.grad_params
 print(#params)
 print(#grad_params)
-params:uniform(-0.2, 0.2)
-local diff,dC,dC_est = optim.checkgrad(AttentionLSTM.feval, params, 1e-2)
+
+local initialization_file = "/home/nghia/test_attention.txt"
+if not file_exists(initialization_file) then
+    params:uniform(-0.2, 0.2)
+    local param_table = {}
+    for t = 1,(#params)[1] do
+        param_table[t] = params[t]
+    end
+    table.save(param_table, initialization_file)
+    print("save")
+else
+    local param_table = table.load(initialization_file)
+    local saved_params = torch.Tensor(param_table)
+    params:copy(saved_params)
+    print("load")
+end
+local diff,dC,dC_est = optim.checkgrad(AttentionLSTM.feval, params, 1e-7)
 --eval(params)
 print(diff)
-print("realGrad")
-print(dC:sum())
-
-print("numericGrad")
-print(dC_est)
+local merge = torch.cat({dC, dC_est},2)
+print(merge)

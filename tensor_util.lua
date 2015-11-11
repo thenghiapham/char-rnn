@@ -1,3 +1,4 @@
+require 'torch'
 local tensor_utils = {}
 
 function tensor_utils.merge(vector_list1, vector_list2)
@@ -19,10 +20,20 @@ function tensor_utils.cut_vectors(matrix)
     local pos_cut = length / 2
     local vector2_length = length - pos_cut
     for i = 1,matrix:size(2) do
-        table.insert(vector_list1, matrix:sub(1,pos_cut,i,i):resize(pos_cut))
-        table.insert(vector_list2, matrix:sub(pos_cut + 1,length,i,i):resize(vector2_length))
+        local vector1 = torch.Tensor(pos_cut)
+        vector1:copy(matrix:sub(1,pos_cut,i,i))
+        table.insert(vector_list1, vector1)
+        local vector2 = torch.Tensor(pos_cut)
+        vector2:copy(matrix:sub(pos_cut + 1,length,i,i))
+        table.insert(vector_list2, vector2)
     end
     return vector_list1, vector_list2
 end
+
+--local a = torch.rand(6,4)
+--print(a)
+--local b,c = tensor_utils.cut_vectors(a)
+--local d = tensor_utils.merge(b,c)
+--print(d)
 
 return tensor_utils

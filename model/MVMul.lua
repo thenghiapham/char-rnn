@@ -11,6 +11,8 @@ function MVMul:updateOutput(input)
    -- mul = zeroes, addmv
    -- TODO: do the same for LinearAttention, i.e. replace 2 with 1
    self.output:mv(input[1],input[2])
+--   print(self.output)
+   
    return self.output
 end
 
@@ -24,6 +26,10 @@ function MVMul:updateGradInput(input, gradOutput)
 --   print(input[2])
 --   print(gradOutput)
 --   error("Stop")
+--   print("backward")
+--   print("input")
+--   print(input[1])
+--   print(input[2])
    self.gradInput[1] = self.gradInput[1] or input[1].new()
    self.gradInput[2] = self.gradInput[2] or input[2].new()
    self.gradInput[1]:resizeAs(input[1])
