@@ -10,18 +10,19 @@ local BareLSTM = require 'model.BareLSTM'
 local model_utils = require 'util.model_utils'
 require 'model.LinearAttention'
 require 'model.MVMul'
+require 'model.FlatWeight'
 require 'util.misc'
 local tensor_utils = require 'tensor_util'
 
 local AttentionLSTM = {}
 
-function AttentionLSTM.softmax_attention_layer(factor_size, attentee_size)
+function AttentionLSTM.softmax_attention_layer(factor_size, attentee_size, tmp_output_size)
     -- let try to use this guy as well as a component to build another module
     local inputs={}
     local outputs={}
     table.insert(inputs, nn.Identity()()) -- factor
     table.insert(inputs, nn.Identity()()) -- attentee
-    local linearAttention = nn.LinearAttention(factor_size, attentee_size)(inputs)
+    local linearAttention = nn.LinearAttention(factor_size, attentee_size, tmp_output_size)(inputs)
     local softmaxAttention = nn.SoftMax()(linearAttention)
     table.insert(outputs, softmaxAttention)
     return nn.gModule(inputs, outputs)
@@ -30,7 +31,7 @@ end
 -- in this module the matrix that decide the attention weights is also the input that
 -- the weight is decided upon
 -- let create another module for the other guy where the two guys are different
-function AttentionLSTM.simple_attention_classifier(factor_size, attentee_size, output_size)
+function AttentionLSTM.simple_attention_classifier(factor_size, attentee_size, tmp_output_size, output_size)
     local inputs={}
     local outputs={}
     
@@ -44,8 +45,11 @@ function AttentionLSTM.simple_attention_classifier(factor_size, attentee_size, o
     local gold = inputs[3]
     
     -- attempt to use the above module, if doesn't work, just copy & paste, should be short
-    local linearAttention = nn.LinearAttention(factor_size, attentee_size)({factor, attentee})
-    local softmaxAttention = nn.SoftMax()(linearAttention)
+    local linearAttention = nn.LinearAttention(factor_size, attentee_size, tmp_output_size)({factor, attentee})
+    local tanhAttention = nn.Tanh()(linearAttention)
+    local weigthedAttention = nn.FlatWeight(tmp_output_size)(tanhAttention)
+    -- TODO: remove Select when move to batch
+    local softmaxAttention = nn.SoftMax()(weigthedAttention)
     -- local softmaxAttention = AttentionLSTM.softmax_attention_layer(factor_size, attentee_size)({factor, attentee})
     
     --- todo weighted application
@@ -74,7 +78,7 @@ function AttentionLSTM.create_network(opt)
     network.left_rnn = BareLSTM.lstm(opt.rnn_size, opt.num_layers, opt.dropout)
     -- require model.LinearAttention
     local factor_size = opt.rnn_size * 2
-    network.classifier = AttentionLSTM.simple_attention_classifier(factor_size, opt.rnn_size * 2, opt.output_size)
+    network.classifier = AttentionLSTM.simple_attention_classifier(factor_size, opt.rnn_size * 2, opt.rnn_size, opt.output_size)
     -- require util.model_utils
     -- this probably create a bigger place that set the metatable for every poor
     -- model
