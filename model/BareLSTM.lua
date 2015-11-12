@@ -35,7 +35,11 @@ function BareLSTM.lstm(rnn_size, n, dropout)
     local all_input_sums = nn.CAddTable()({i2h, h2h})
 
     local reshaped = nn.Reshape(4, rnn_size)(all_input_sums)
-    local n1, n2, n3, n4 = nn.SplitTable(1)(reshaped):split(4)
+    ---- TODO:
+    -- batch -> split table (2)
+    -- no batch -> split table (1)
+    -- should be consistent somehow
+    local n1, n2, n3, n4 = nn.SplitTable(2)(reshaped):split(4)
     -- decode the gates
     local in_gate = nn.Sigmoid()(n1)
     local forget_gate = nn.Sigmoid()(n2)

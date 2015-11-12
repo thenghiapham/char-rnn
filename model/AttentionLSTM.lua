@@ -117,8 +117,8 @@ function AttentionLSTM.prepare_training(opt)
     -- to deal with batch size, need to deal with the attention
     local init_state = {}
     for L=1,opt.num_layers do
-        -- local h_init = torch.zeros(opt.batch_size, opt.rnn_size)
-        local h_init = torch.zeros(opt.rnn_size)
+        local h_init = torch.zeros(opt.batch_size, opt.rnn_size)
+--        local h_init = torch.zeros(opt.rnn_size)
         if opt.gpuid >=0 and opt.opencl == 0 then h_init = h_init:cuda() end
         if opt.gpuid >=0 and opt.opencl == 1 then h_init = h_init:cl() end
         table.insert(init_state, h_init:clone())
@@ -154,7 +154,7 @@ function AttentionLSTM.feval(x)
     -- TODO: change the input/output data
     ------------------ get minibatch -------------------
     -- Nghia: integers can't be cuda() but can be cl()?
-    local derr = torch.ones(1.0)
+    local derr = torch.ones(2)
     local x, y = unpack(opt.loader:next_batch())
     if opt.gpuid >= 0 and opt.opencl == 0 then -- ship the input arrays to GPU
         -- have to convert to float because integers can't be cuda()'d
@@ -190,13 +190,11 @@ function AttentionLSTM.feval(x)
     -- TODO: fix this, i.e. deal with sequence
     local attentee = {{},{}}
     for t=1,sequence_length do
-        embeddings[t] = network.embedding_clones[t]:forward(sequence:sub(t,t))
-        print(embeddings[t])
+        embeddings[t] = network.embedding_clones[t]:forward(sequence[t])
     end
     -- TODO: change if necessary
-    local pair_embedding1 = network.embedding_clones[sequence_length + 1]:forward(tensor_utils.extract_last_index(pair, 1,1))
-    local pair_embedding2 = network.embedding_clones[sequence_length + 2]:forward(tensor_utils.extract_last_index(pair, 2,2))
-    print(pair_embedding1)
+    local pair_embedding1 = network.embedding_clones[sequence_length + 1]:forward(pair[1])
+    local pair_embedding2 = network.embedding_clones[sequence_length + 2]:forward(pair[2])
     local factor = torch.cat(pair_embedding1, pair_embedding2)
     ---- embedding returns 2 dimensional vector
     -- factor:resize(opt.rnn_size * 2)
@@ -214,6 +212,7 @@ function AttentionLSTM.feval(x)
         -- init state is {c1,h1,c2,h2...,ct,ht}
         local rst = network.right_clones[t]:forward{embeddings[t], unpack(right_state[t-1])}
         left_t = 1 + sequence_length- t
+        
         local lst = network.left_clones[left_t]:forward{embeddings[left_t], unpack(left_state[left_t + 1])}
         
         -- since no prediction, put it straight away
@@ -246,7 +245,7 @@ function AttentionLSTM.feval(x)
     
     local dembeddings = {}
     for t = 1,sequence_length + 2 do
-        dembeddings[t] = torch.zeros(opt.rnn_size)
+        dembeddings[t] = torch.zeros(opt.batch_size, opt.rnn_size)
     end
     
     
@@ -309,8 +308,8 @@ function AttentionLSTM.feval(x)
 --    print("dfactor")
 --    print(dfactor)
 --    error("stop here")
-    network.embedding_clones[sequence_length + 1]:backward(tensor_utils.extract_last_index(pair, 1,1), tensor_utils.extract_last_index(dfactor, 1,opt.rnn_size))
-    network.embedding_clones[sequence_length + 2]:backward(tensor_utils.extract_last_index(pair, 2,2), tensor_utils.extract_last_index(dfactor, opt.rnn_size + 1, 2 * opt.rnn_size))
+    network.embedding_clones[sequence_length + 1]:backward(pair[1], tensor_utils.extract_last_index(dfactor, 1,opt.rnn_size))
+    network.embedding_clones[sequence_length + 2]:backward(pair[2], tensor_utils.extract_last_index(dfactor, opt.rnn_size + 1, 2 * opt.rnn_size))
         
     -- TODO: backward from pair???
     

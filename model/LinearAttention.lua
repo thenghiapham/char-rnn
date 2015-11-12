@@ -66,7 +66,8 @@ function LinearAttention:updateOutput(input)
         output  b x seq x out 
       ]]--
       local batch_size = attentee:size(1)
-      local seq_size = atentee:size(2)
+      local seq_size = attentee:size(2)
+      local attentee_size = attentee:size(3)
       local output_size = self.weightFactor:size(1)
       local nElement = self.output:nElement()
       
@@ -74,12 +75,13 @@ function LinearAttention:updateOutput(input)
       if self.output:nElement() ~= nElement then
          self.output:zero()
       end
-      self.output:addmm(attentee:resize(batch_size * seq_size, output_size), self.weightAttentee:t())
+      self.output:addmm(attentee:resize(batch_size * seq_size, attentee_size), self.weightAttentee:t())
       local temp = torch.ger(torch.Tensor(seq_size):fill(1),(factor * self.weightFactor:t()):resize(batch_size * output_size))
       temp:resize(seq_size, batch_size, output_size)
       self.output:add(temp:transpose(1,2))
       
-      attentee:resize(batch_size, seq_size, output_size)
+      attentee:resize(batch_size, seq_size, attentee_size)
+      self.output:resize(batch_size, seq_size, output_size)
    else
       error('input must be a table of a vector and a matrix (single) or a matrix and a cube')
    end
@@ -113,8 +115,8 @@ function LinearAttention:updateGradInput(input, gradOutput)
       
       gradAttentee:resize(batch_size * seq_size, attentee_size)
       gradFactor:resizeAs(factor)
-      self.gradFactor:zero()
-      self.gradAttentee:zero()
+      gradFactor:zero()
+      gradAttentee:zero()
       
       
       gradFactor:addmm(gradOutput:sum(2):resize(batch_size, output_size), self.weightFactor)
@@ -150,7 +152,7 @@ function LinearAttention:accGradParameters(input, gradOutput, scale)
       attentee:resize(batch_size * seq_size, attentee_size)
       gradOutput:resize(batch_size * seq_size, output_size)
       
-      self.gradWeightAttentee(gradOutput:t(), attentee)
+      self.gradWeightAttentee:addmm(gradOutput:t(), attentee)
       
       attentee:resize(batch_size, seq_size, attentee_size)
       gradOutput:resize(batch_size, seq_size, output_size)

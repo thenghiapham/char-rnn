@@ -9,6 +9,8 @@ end
 function MVMul:updateOutput(input)
    local large = input[1]
    local small = input[2]
+--   print(large)
+--   print(small)
    if large:dim() == 2 then
       -- TODO: current output of the whole thing is
       -- rnn x seq_length
@@ -24,6 +26,7 @@ function MVMul:updateOutput(input)
       self.output:bmm(small, large)
       small:resize(batch_size, seq_size)
       self.output:resize(batch_size, attentee_size)
+--      print(self.output)
       
    else
       error('input must be a table of a vector and a matrix (single) or a matrix and a cube')
@@ -39,9 +42,10 @@ end--]]
 function MVMul:updateGradInput(input, gradOutput)
    local large = input[1]
    local small = input[2]
+   self.gradInput[1] = self.gradInput[1] or input[1].new()
+   self.gradInput[2] = self.gradInput[2] or input[2].new()
    if large:dim() == 2 then
-      self.gradInput[1] = self.gradInput[1] or input[1].new()
-      self.gradInput[2] = self.gradInput[2] or input[2].new()
+      
       self.gradInput[1]:resizeAs(input[1])
       self.gradInput[2]:resizeAs(input[2])
      
@@ -60,12 +64,12 @@ function MVMul:updateGradInput(input, gradOutput)
 
       small:resize(batch_size, seq_size, 1)
       self.gradInput[1]:resizeAs(large)
-      self.gradInput[1]:bmm(gradOutput, small)
+      self.gradInput[1]:bmm(small,gradOutput)
       small:resize(batch_size, seq_size)
       
       gradOutput:resize(batch_size, attentee_size, 1)
 
-      self.gradInput[2]:resizeAs(batch_size, seq_size, 1)
+      self.gradInput[2]:resize(batch_size, seq_size, 1)
       self.gradInput[2]:bmm(large, gradOutput)
       self.gradInput[2]:resizeAs(small)
       

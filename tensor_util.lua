@@ -13,17 +13,19 @@ function tensor_utils.merge(vector_list1, vector_list2)
     else
         local new_list = {}
         local batch_size = vector_list1[1]:size(1)
-        local seq_size = #vector_list1[1]
-        local attentee_size = vector_list1[1]:size(2) * 2
+        local seq_size = #vector_list1
+        local attentee_size = (vector_list1[1]:size(2)) * 2
         local list_length = #vector_list1
         for t = 1,(list_length * 2) do
             if (t % 2 == 1) then
-                new_list[t] = vector_list1[t / 2 - 1]
+                new_list[t] = vector_list1[(t + 1) / 2]
             else
-                new_list[t] = vector_list2[t / 2 - 1]
+                new_list[t] = vector_list2[t / 2]
             end
         end
-        return torch.cat(new_list, 2):resize(batch_size, seq_size, attentee_size)
+        
+        local result = torch.cat(new_list,2)
+        return result:resize(batch_size, seq_size, attentee_size)
     end
 end
 

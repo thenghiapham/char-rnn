@@ -8,8 +8,12 @@ FakeLoader.__index = FakeLoader
 --end
 
 function FakeLoader:next_batch()
-    x = {torch.Tensor{{1,2,3,4,3},{3,1,4,2,3}},torch.Tensor{{2,4},{3,1}}}
-    y = torch.Tensor{2,4}
+--    x = {torch.Tensor{{1,1},{2,2},{3,3},{4,4},{3,3}},torch.Tensor{{2,2},{4,4}}}
+--    y = torch.Tensor{2,2}
+--    x = {torch.Tensor{{1},{2},{3},{4},{3}},torch.Tensor{{2},{4}}}
+--    y = torch.Tensor{2}
+    x = {torch.Tensor{{1,1,1},{2,2,2},{3,3,3},{4,4,4},{3,3,3}},torch.Tensor{{2,2,2},{4,4,4}}}
+    y = torch.Tensor{2,3,2}
     return {x,y}
 end
 
