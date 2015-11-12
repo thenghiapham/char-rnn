@@ -12,10 +12,8 @@ function LinearAttention:__init(factorSize, attenteeSize, output_size)
    
    self.weightFactor = torch.Tensor(output_size, factorSize)
    self.weightAttentee = torch.Tensor(output_size, attenteeSize)
---   self.bias = torch.Tensor(1)
    self.gradWeightFactor = torch.Tensor(output_size, factorSize)
    self.gradWeightAttentee = torch.Tensor(output_size, attenteeSize)
---   self.gradBias = torch.Tensor(1)
    self:reset()
 end
 
@@ -32,18 +30,11 @@ function LinearAttention:reset(stdv)
       self.weightAttentee:apply(function()
             return torch.uniform(-stdv, stdv)
       end)
---      self.bias[1] = torch.uniform(-stdv, stdv)
       
    else
       self.weightFactor:uniform(-stdv, stdv)
       self.weightAttentee:uniform(-stdv, stdv)
---      self.bias:uniform(-stdv, stdv)
    end
-   -- TODO: remove the fill commands
---   self.weightFactor:fill(1)
---   self.weightAttentee:fill(2)
---   self.bias:fill(3)
-   
    return self
 end
 
@@ -53,9 +44,6 @@ function LinearAttention:parameters()
 end
 
 function LinearAttention:updateOutput(input)
-   -- TODO:
-   -- understand why they don't have this guy here 
-   -- if don't understand, uncomment the line below
    self.output:zero()
    local factor = input[1]
    local attentee = input[2]
@@ -71,8 +59,30 @@ function LinearAttention:updateOutput(input)
       local factorShare = torch.mv(self.weightFactor,factor)
       self.output:addmm(self.weightAttentee, attentee) 
       self.output:addr(factorShare, torch.Tensor(attentee:size(2)):fill(1)) -- add all element 
+   elseif attentee:dim() == 3 and factor:dim() == 2 then
+      --[[ In this case, the sequences must have the same lengths because the
+        batch operation put everything into a cube
+        input   attentee b x seq x rnn*k
+        wfact   rnn*k x out
+        output  b x seq x out 
+      ]]--
+      local batch_size = attentee:size(1)
+      local seq_size = atentee:size(2)
+      local output_size = self.weightFactor:size(1)
+      local nElement = self.output:nElement()
+      
+      self.output:resize(batch_size * seq_size, output_size)
+      if self.output:nElement() ~= nElement then
+         self.output:zero()
+      end
+      self.output:addmm(attentee:resize(batch_size * seq_size, output_size), self.weightAttentee:t())
+      local temp = torch.ger(torch.Tensor(seq_size):fill(1),(factor * self.weightFactor:t()):resize(batch_size * output_size))
+      temp:resize(seq_size, batch_size, output_size)
+      self.output:add(temp:transpose(1,2))
+      
+      attentee:resize(batch_size, seq_size, output_size)
    else
-      error('input must be a table of a vector and a matrix')
+      error('input must be a table of a vector and a matrix (single) or a matrix and a cube')
    end
    return self.output
 end
@@ -83,19 +93,42 @@ function LinearAttention:updateGradInput(input, gradOutput)
    local factor = input[1]
    local attentee = input[2]
    
-   if self.gradInput then
-      local gradFactor = self.gradInput[1]
-      local gradAttentee = self.gradInput[2]
-      local factorElement = gradFactor:nElement()
-      local attenteeElement = gradAttentee:nElement()
-      self.gradInput[1]:resizeAs(factor)
-      self.gradInput[2]:resizeAs(attentee)
-      self.gradInput[1]:zero()
-      self.gradInput[2]:zero()
+   local gradFactor = self.gradInput[1]
+   local gradAttentee = self.gradInput[2]
+   local factorElement = gradFactor:nElement()
+   local attenteeElement = gradAttentee:nElement()
+   
+   if attentee:dim() == 2 and factor:dim() == 1 then
+      gradFactor:resizeAs(factor)
+      gradAttentee:resizeAs(attentee)
+      gradFactor:zero()
+      gradAttentee:zero()
       gradAttentee:addmm(1, self.weightAttentee:t(), gradOutput) -- switch if change dimension of attentee
       gradFactor:addmv(self.weightFactor:t(),gradOutput:sum(2):resize(gradOutput:size(1)))
-      return self.gradInput
+   elseif attentee:dim() == 3 and factor:dim() == 2 then
+      local batch_size = gradOutput:size(1)
+      local seq_size = gradOutput:size(2)
+      local output_size = gradOutput:size(3)
+      local attentee_size = self.weightAttentee:size(2)
+      local factor_size = self.weightFactor:size(2)
+      
+      gradAttentee:resize(batch_size * seq_size, attentee_size)
+      gradFactor:resizeAs(factor)
+      self.gradFactor:zero()
+      self.gradAttentee:zero()
+      
+      
+      gradFactor:addmm(gradOutput:sum(2):resize(batch_size, output_size), self.weightFactor)
+      
+      gradOutput:resize(batch_size * seq_size, output_size)
+      gradAttentee:addmm(gradOutput, self.weightAttentee)
+      
+      gradAttentee:resizeAs(attentee)
+      gradOutput:resize(batch_size, seq_size, output_size)
+   else
+      error('input must be a table of a vector and a matrix (single) or a matrix and a cube')
    end
+   return self.gradInput
 end
 
 
@@ -103,9 +136,28 @@ function LinearAttention:accGradParameters(input, gradOutput, scale)
    scale = scale or 1
    local factor = input[1]
    local attentee = input[2]
-   
-   self.gradWeightAttentee:addmm(scale, gradOutput, attentee:t())
-   self.gradWeightFactor:addr(scale , gradOutput:sum(2):resize(gradOutput:size(1)), factor)
+   if attentee:dim() == 2 and factor:dim() == 1 then
+      self.gradWeightAttentee:addmm(scale, gradOutput, attentee:t())
+      self.gradWeightFactor:addr(scale , gradOutput:sum(2):resize(gradOutput:size(1)), factor)
+   elseif  attentee:dim() == 3 and factor:dim() == 2 then
+      local batch_size = gradOutput:size(1)
+      local seq_size = gradOutput:size(2)
+      local output_size = gradOutput:size(3)
+      local attentee_size = self.weightAttentee:size(2)
+      local factor_size = self.weightFactor:size(2)
+      
+      self.gradWeightFactor:addmm(scale, gradOutput:sum(2):resize(batch_size, output_size):t(), factor)
+      
+      attentee:resize(batch_size * seq_size, attentee_size)
+      gradOutput:resize(batch_size * seq_size, output_size)
+      
+      self.gradWeightAttentee(gradOutput:t(), attentee)
+      
+      attentee:resize(batch_size, seq_size, attentee_size)
+      gradOutput:resize(batch_size, seq_size, output_size)
+   else
+      error('input must be a table of a vector and a matrix (single) or a matrix and a cube')
+   end
 end
 
 -- we do not need to accumulate parameters when sharing

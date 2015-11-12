@@ -193,8 +193,8 @@ function AttentionLSTM.feval(x)
         embeddings[t] = network.embedding_clones[t]:forward(sequence:sub(t,t)):resize(opt.rnn_size)
     end
     -- TODO: change if necessary
-    local pair_embedding1 = network.embedding_clones[sequence_length + 1]:forward(pair:sub(1,1)):resize(opt.rnn_size)
-    local pair_embedding2 = network.embedding_clones[sequence_length + 2]:forward(pair:sub(2,2)):resize(opt.rnn_size)
+    local pair_embedding1 = network.embedding_clones[sequence_length + 1]:forward(tensor_utils.extract_last_index(pair, 1,1)):resize(opt.rnn_size)
+    local pair_embedding2 = network.embedding_clones[sequence_length + 2]:forward(tensor_utils.extract_last_index(pair, 2,2)):resize(opt.rnn_size)
     
     local factor = torch.cat(pair_embedding1, pair_embedding2)
     ---- embedding returns 2 dimensional vector
@@ -232,7 +232,7 @@ function AttentionLSTM.feval(x)
 --    print("Parameters")
 --    print(network.classifier:parameters()[2])
 --    print("No parameters")
-    loss = network.classifier:forward({factor, merge_state, gold})[1]
+    loss = network.classifier:forward({factor, merge_state, gold}):sum()
 --    print("loss")
 --    print(loss)
 --    error("stop here")
@@ -308,8 +308,8 @@ function AttentionLSTM.feval(x)
 --    print("dfactor")
 --    print(dfactor)
 --    error("stop here")
-    network.embedding_clones[sequence_length + 1]:backward(pair:sub(1,1), dfactor:sub(1,opt.rnn_size))
-    network.embedding_clones[sequence_length + 2]:backward(pair:sub(2,2), dfactor:sub(opt.rnn_size + 1, 2 * opt.rnn_size))
+    network.embedding_clones[sequence_length + 1]:backward(tensor_utils.extract_last_index(pair, 1,1), tensor_utils.extract_last_index(dfactor, 1,opt.rnn_size))
+    network.embedding_clones[sequence_length + 2]:backward(tensor_utils.extract_last_index(pair, 2,2), tensor_utils.extract_last_index(dfactor, opt.rnn_size + 1, 2 * opt.rnn_size))
         
     -- TODO: backward from pair???
     

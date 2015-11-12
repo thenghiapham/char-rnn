@@ -1,10 +1,15 @@
 local FakeLoader = {}
 FakeLoader.__index = FakeLoader
 
+--function FakeLoader:next_batch()
+--    x = {torch.Tensor{1,2,3,4,3},torch.Tensor{2,4}}
+--    y = torch.Tensor{2}
+--    return {x,y}
+--end
+
 function FakeLoader:next_batch()
-    x = {torch.Tensor{1,2,3,4,3},torch.Tensor{2,4}}
-    --x = {torch.Tensor{1,3},torch.Tensor{2,4}}
-    y = torch.Tensor{2}
+    x = {torch.Tensor{{1,2,3,4,3},{3,1,4,2,3}},torch.Tensor{{2,4},{3,1}}}
+    y = torch.Tensor{2,4}
     return {x,y}
 end
 

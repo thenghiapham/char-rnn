@@ -38,37 +38,78 @@ function FlatWeight:updateOutput(input)
    -- understand why they don't have this guy here 
    -- if don't understand, uncomment the line below
    self.output:zero()
-   self.output:resize(1,input:size(2))
+   
    if input:dim() == 2 then
+      self.output:resize(1,input:size(2))
       self.output:mm(self.weight, input) 
+      self.output:resize(input:size(2))
+   elseif input:dim() == 3 then
+      local batch_size = input:size(1)
+      local seq_size = input:size(2)
+      local output_size = input:size(3)
+      input:resize(batch_size * seq_size, output_size)
+      self.output:resize(batch_size * seq_size, 1)
+      self.output:mm(input, self.weight:t())
+      self.output:resize(batch_size, seq_size)
+      input:resize(batch_size, seq_size, output_size)
    else
-      error('input must be a matrix')
+      error('input must be a matrix or cube')
    end
-   return self.output:resize(input:size(2))
+   return self.output
 end
 
 
 
 function FlatWeight:updateGradInput(input, gradOutput)
-   local tmp = torch.Tensor(gradOutput:size(1))
-   tmp:copy(gradOutput)
-   tmp:resize(1,gradOutput:size(1))
-   if self.gradInput then
+   
+   if input:dim() == 2 then
+      local tmp = torch.Tensor(gradOutput:size(1))
+      tmp:copy(gradOutput)
+      tmp:resize(1,gradOutput:size(1))
       self.gradInput:resizeAs(input)
       self.gradInput:zero()
       self.gradInput:addmm(1,self.weight:t(), tmp) -- switch if change dimension of attentee
-      return self.gradInput
+      
+   elseif input:dim() == 3 then
+      local batch_size = input:size(1)
+      local seq_size = input:size(2)
+      local output_size = input:size(3)
+      gradOutput:resize(batch_size * seq_size, 1)
+      self.gradInput:resize(batch_size * seq_size, output_size)
+      
+      self.gradInput:mm(gradOutput, self.weight)
+      self.gradInput:resize(batch_size, seq_size, output_size)
+      gradOutput:resize(batch_size, seq_size, 1)
+   else
+      error('input must be a matrix or cube')
    end
+   return self.gradInput
 end
 
 
 function FlatWeight:accGradParameters(input, gradOutput, scale)
-   local tmp = torch.Tensor(gradOutput:size(1))
-   tmp:copy(gradOutput)
-   tmp:resize(1,gradOutput:size(1))
+   
    scale = scale or 1
    -- TODO: fix this, don't rotate input?
-   self.gradWeight:addmm(scale, tmp, input:t())
+   if input:dim() == 2 then
+      local tmp = torch.Tensor(gradOutput:size(1))
+      tmp:copy(gradOutput)
+      tmp:resize(1,gradOutput:size(1))
+      self.gradWeight:addmm(scale, tmp, input:t())
+   elseif input:dim() == 3 then
+      local batch_size = input:size(1)
+      local seq_size = input:size(2)
+      local output_size = input:size(3)
+      gradOutput:resize(batch_size * seq_size, 1)
+      input:resize(batch_size * seq_size, output_size)
+      
+      self.gradWeight:mm(gradOutput:t(), input)
+      
+      input:resize(batch_size, seq_size, output_size)
+      gradOutput:resize(batch_size, seq_size, 1)
+   else
+      error('input must be a matrix or cube')
+   end
 end
 
 -- we do not need to accumulate parameters when sharing
