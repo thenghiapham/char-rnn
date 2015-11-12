@@ -7,7 +7,6 @@ local LinearAttention, parent = torch.class('nn.LinearAttention', 'nn.Module')
 --     vectors and l is the number of these vectors
 function LinearAttention:__init(factorSize, attenteeSize, output_size)
    parent.__init(self)
-
    self.gradInput = {torch.Tensor(), torch.Tensor()}
    
    self.weightFactor = torch.Tensor(output_size, factorSize)

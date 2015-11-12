@@ -190,12 +190,13 @@ function AttentionLSTM.feval(x)
     -- TODO: fix this, i.e. deal with sequence
     local attentee = {{},{}}
     for t=1,sequence_length do
-        embeddings[t] = network.embedding_clones[t]:forward(sequence:sub(t,t)):resize(opt.rnn_size)
+        embeddings[t] = network.embedding_clones[t]:forward(sequence:sub(t,t))
+        print(embeddings[t])
     end
     -- TODO: change if necessary
-    local pair_embedding1 = network.embedding_clones[sequence_length + 1]:forward(tensor_utils.extract_last_index(pair, 1,1)):resize(opt.rnn_size)
-    local pair_embedding2 = network.embedding_clones[sequence_length + 2]:forward(tensor_utils.extract_last_index(pair, 2,2)):resize(opt.rnn_size)
-    
+    local pair_embedding1 = network.embedding_clones[sequence_length + 1]:forward(tensor_utils.extract_last_index(pair, 1,1))
+    local pair_embedding2 = network.embedding_clones[sequence_length + 2]:forward(tensor_utils.extract_last_index(pair, 2,2))
+    print(pair_embedding1)
     local factor = torch.cat(pair_embedding1, pair_embedding2)
     ---- embedding returns 2 dimensional vector
     -- factor:resize(opt.rnn_size * 2)
