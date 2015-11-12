@@ -22,8 +22,12 @@ function AttentionLSTM.softmax_attention_layer(factor_size, attentee_size, tmp_o
     local outputs={}
     table.insert(inputs, nn.Identity()()) -- factor
     table.insert(inputs, nn.Identity()()) -- attentee
-    local linearAttention = nn.LinearAttention(factor_size, attentee_size, tmp_output_size)(inputs)
-    local softmaxAttention = nn.SoftMax()(linearAttention)
+    local factor = inputs[1]
+    local attentee = inputs[2]
+    local linearAttention = nn.LinearAttention(factor_size, attentee_size, tmp_output_size)({factor, attentee})
+    local tanhAttention = nn.Tanh()(linearAttention)
+    local weigthedAttention = nn.FlatWeight(tmp_output_size)(tanhAttention)
+    local softmaxAttention = nn.SoftMax()(weigthedAttention)
     table.insert(outputs, softmaxAttention)
     return nn.gModule(inputs, outputs)
 end
@@ -48,9 +52,7 @@ function AttentionLSTM.simple_attention_classifier(factor_size, attentee_size, t
     local linearAttention = nn.LinearAttention(factor_size, attentee_size, tmp_output_size)({factor, attentee})
     local tanhAttention = nn.Tanh()(linearAttention)
     local weigthedAttention = nn.FlatWeight(tmp_output_size)(tanhAttention)
-    -- TODO: remove Select when move to batch
     local softmaxAttention = nn.SoftMax()(weigthedAttention)
-    -- local softmaxAttention = AttentionLSTM.softmax_attention_layer(factor_size, attentee_size)({factor, attentee})
     
     --- todo weighted application
     local weightedSumVec = nn.MVMul()({attentee, softmaxAttention})
@@ -71,11 +73,16 @@ end
 --  - the word/pair representation (question is, where is this representation)
 --  TODO: fix the BareLSTM so that it doesn't encode the character, but the word
 function AttentionLSTM.create_network(opt)
+    if (opt.batch_size >= 1) then
+        opt.use_batch = true
+    else
+        opt.use_batch = false
+    end
     local network = {}
     network.base_embedding_layer = nn.LookupTable(opt.vocab_size, opt.rnn_size)
     -- require model.BareLSTM
-    network.right_rnn = BareLSTM.lstm(opt.rnn_size, opt.num_layers, opt.dropout)
-    network.left_rnn = BareLSTM.lstm(opt.rnn_size, opt.num_layers, opt.dropout)
+    network.right_rnn = BareLSTM.lstm(opt.rnn_size, opt.num_layers, opt.dropout, opt.use_batch)
+    network.left_rnn = BareLSTM.lstm(opt.rnn_size, opt.num_layers, opt.dropout, opt.use_batch)
     -- require model.LinearAttention
     local factor_size = opt.rnn_size * 2
     network.classifier = AttentionLSTM.simple_attention_classifier(factor_size, opt.rnn_size * 2, opt.rnn_size, opt.output_size)
@@ -117,8 +124,12 @@ function AttentionLSTM.prepare_training(opt)
     -- to deal with batch size, need to deal with the attention
     local init_state = {}
     for L=1,opt.num_layers do
-        local h_init = torch.zeros(opt.batch_size, opt.rnn_size)
---        local h_init = torch.zeros(opt.rnn_size)
+        local h_init
+        if (opt.use_batch) then
+            h_init = torch.zeros(opt.batch_size, opt.rnn_size)
+        else
+            h_init = torch.zeros(opt.rnn_size)
+        end
         if opt.gpuid >=0 and opt.opencl == 0 then h_init = h_init:cuda() end
         if opt.gpuid >=0 and opt.opencl == 1 then h_init = h_init:cl() end
         table.insert(init_state, h_init:clone())
@@ -129,6 +140,25 @@ function AttentionLSTM.prepare_training(opt)
     AttentionLSTM.network.init_state = init_state
     AttentionLSTM.network.init_state_global = init_state_global
     AttentionLSTM.network.opt = opt
+end
+
+local function get_embedding(lookup_table, index)
+    if (type(index) == "number") then
+        index = torch.Tensor{index}
+        local embedding = lookup_table:forward(index)
+        return embedding:resize(embedding:size(2))
+    else
+        return lookup_table:forward(index)
+    end
+end
+
+
+local function tensorize(index)
+    if (type(index) == "number") then
+        return torch.Tensor{index}
+    else
+        return index
+    end
 end
 
 ----
@@ -173,7 +203,6 @@ function AttentionLSTM.feval(x)
     
     
     local sequence_length = (#sequence)[1]
-    --print(gold)
     ------------------- FORWARD PASS  -------------------
     -- TODO: set this init_state_global to contains only zeros
     -- (since we're not doing language modeling
@@ -190,11 +219,11 @@ function AttentionLSTM.feval(x)
     -- TODO: fix this, i.e. deal with sequence
     local attentee = {{},{}}
     for t=1,sequence_length do
-        embeddings[t] = network.embedding_clones[t]:forward(sequence[t])
+        embeddings[t] = get_embedding(network.embedding_clones[t],sequence[t])
     end
     -- TODO: change if necessary
-    local pair_embedding1 = network.embedding_clones[sequence_length + 1]:forward(pair[1])
-    local pair_embedding2 = network.embedding_clones[sequence_length + 2]:forward(pair[2])
+    local pair_embedding1 = get_embedding(network.embedding_clones[sequence_length + 1], pair[1])
+    local pair_embedding2 = get_embedding(network.embedding_clones[sequence_length + 2], pair[2])
     local factor = torch.cat(pair_embedding1, pair_embedding2)
     ---- embedding returns 2 dimensional vector
     -- factor:resize(opt.rnn_size * 2)
@@ -227,15 +256,7 @@ function AttentionLSTM.feval(x)
     -- need to merge the two list of tensors
     -- TODO:
     local merge_state = tensor_utils.merge(unpack(attentee))
---    print(merge_state)
-    -- only 1 prediction
---    print("Parameters")
---    print(network.classifier:parameters()[2])
---    print("No parameters")
     loss = network.classifier:forward({factor, merge_state, gold}):sum()
---    print("loss")
---    print(loss)
---    error("stop here")
         
     ------------------ BACKWARD PASS -------------------
     -- initialize gradient at time t to be zeros (there's no influence from future)
@@ -245,7 +266,11 @@ function AttentionLSTM.feval(x)
     
     local dembeddings = {}
     for t = 1,sequence_length + 2 do
-        dembeddings[t] = torch.zeros(opt.batch_size, opt.rnn_size)
+        if (opt.use_batch) then
+            dembeddings[t] = torch.zeros(opt.batch_size, opt.rnn_size)
+        else
+            dembeddings[t] = torch.zeros(opt.rnn_size)
+        end
     end
     
     
@@ -253,9 +278,6 @@ function AttentionLSTM.feval(x)
     --    2 embedding error
     --    d[h_r[last_layer]], d[h_l[last_layer]] for every sequence element
     local dattention = network.classifier:backward({pair, merge_state, gold}, derr)
---    print("d_attention")
---    print(dattention[2]:sum())
---    print(dattention[1])
     local d_merge_state = dattention[2]
     -- TODO: fix this
     local d_attentee1, d_attentee2 = tensor_utils.cut_vectors(d_merge_state)
@@ -300,16 +322,12 @@ function AttentionLSTM.feval(x)
     -- TODO: fix this, i.e. deal with sequence
     
     for t=1,sequence_length do
---        print(dembeddings[t])
         network.embedding_clones[t]:backward(sequence:sub(t,t), dembeddings[t])
     end
     
     local dfactor = dattention[1]
---    print("dfactor")
---    print(dfactor)
---    error("stop here")
-    network.embedding_clones[sequence_length + 1]:backward(pair[1], tensor_utils.extract_last_index(dfactor, 1,opt.rnn_size))
-    network.embedding_clones[sequence_length + 2]:backward(pair[2], tensor_utils.extract_last_index(dfactor, opt.rnn_size + 1, 2 * opt.rnn_size))
+    network.embedding_clones[sequence_length + 1]:backward(tensorize(pair[1]), tensor_utils.extract_last_index(dfactor, 1,opt.rnn_size))
+    network.embedding_clones[sequence_length + 2]:backward(tensorize(pair[2]), tensor_utils.extract_last_index(dfactor, opt.rnn_size + 1, 2 * opt.rnn_size))
         
     -- TODO: backward from pair???
     

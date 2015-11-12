@@ -34,7 +34,7 @@ local function parse_opt()
   cmd:option('-seq_length',50,'number of timesteps to unroll for')
   ---- TODO set batch size > 1 to gradient check batch later
   -- this time 1 to check simple first
-  cmd:option('-batch_size',3,'number of sequences to train on in parallel')
+  cmd:option('-batch_size',0,'number of sequences to train on in parallel')
   cmd:option('-max_epochs',50,'number of full passes through the training data')
   cmd:option('-grad_clip',5,'clip gradients at this value')
   cmd:option('-train_frac',0.95,'fraction of data that goes into train set')
