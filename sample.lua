@@ -102,7 +102,7 @@ for L = 1,checkpoint.opt.num_layers do
     if opt.gpuid >= 0 and opt.opencl == 0 then h_init = h_init:cuda() end
     if opt.gpuid >= 0 and opt.opencl == 1 then h_init = h_init:cl() end
     table.insert(current_state, h_init:clone())
-    if checkpoint.opt.model == 'lstm' then
+    if checkpoint.opt.model == 'lstm' or checkpoint.opt.model == 'scrnn' then
         table.insert(current_state, h_init:clone())
     end
 end

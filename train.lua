@@ -26,6 +26,7 @@ local model_utils = require 'util.model_utils'
 local LSTM = require 'model.LSTM'
 local GRU = require 'model.GRU'
 local RNN = require 'model.RNN'
+local SCRNN = require 'model.SCRNN'
 
 cmd = torch.CmdLine()
 cmd:text()
@@ -37,7 +38,7 @@ cmd:option('-data_dir','data/tinyshakespeare','data directory. Should contain th
 -- model params
 cmd:option('-rnn_size', 128, 'size of LSTM internal state')
 cmd:option('-num_layers', 2, 'number of layers in the LSTM')
-cmd:option('-model', 'lstm', 'lstm,gru or rnn')
+cmd:option('-model', 'scrnn', 'lstm,gru, scrnn or rnn')
 -- optimization
 cmd:option('-learning_rate',2e-3,'learning rate')
 cmd:option('-learning_rate_decay',0.97,'learning rate decay')
@@ -141,8 +142,10 @@ else
     protos = {}
     if opt.model == 'lstm' then
         protos.rnn = LSTM.lstm(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
-        graph.dot(protos.rnn.fg, "lstm", "/home/nghia/char-rnn_fw")
-        graph.dot(protos.rnn.bg, "lstm", "/home/nghia/char-rnn_bw")
+--        graph.dot(protos.rnn.fg, "lstm", "/home/nghia/char-rnn_fw")
+--        graph.dot(protos.rnn.bg, "lstm", "/home/nghia/char-rnn_bw")
+    elseif opt.model == 'scrnn' then
+        protos.rnn = SCRNN.scrnn(vocab_size, opt.rnn_size, 0.95, opt.num_layers, opt.dropout)
     elseif opt.model == 'gru' then
         protos.rnn = GRU.gru(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
     elseif opt.model == 'rnn' then
@@ -158,7 +161,7 @@ for L=1,opt.num_layers do
     if opt.gpuid >=0 and opt.opencl == 0 then h_init = h_init:cuda() end
     if opt.gpuid >=0 and opt.opencl == 1 then h_init = h_init:cl() end
     table.insert(init_state, h_init:clone())
-    if opt.model == 'lstm' then
+    if opt.model == 'lstm' or opt.model == 'scrnn' then
         table.insert(init_state, h_init:clone())
     end
 end
