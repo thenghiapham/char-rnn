@@ -18,6 +18,7 @@ require 'nn'
 require 'nngraph'
 require 'optim'
 require 'lfs'
+require 'pl'
 
 require 'util.OneHot'
 require 'util.misc'
@@ -37,8 +38,8 @@ cmd:text('Options')
 cmd:option('-data_dir','data/tinyshakespeare','data directory. Should contain the file input.txt with input data')
 -- model params
 cmd:option('-rnn_size', 128, 'size of LSTM internal state')
-cmd:option('-num_layers', 2, 'number of layers in the LSTM')
-cmd:option('-model', 'scrnn', 'lstm,gru, scrnn or rnn')
+cmd:option('-num_layers', 1, 'number of layers in the LSTM')
+cmd:option('-model', 'lstm', 'lstm,gru, scrnn or rnn')
 -- optimization
 cmd:option('-learning_rate',2e-3,'learning rate')
 cmd:option('-learning_rate_decay',0.97,'learning rate decay')
@@ -58,9 +59,9 @@ cmd:option('-seed',123,'torch manual random number generator seed')
 cmd:option('-print_every',1,'how many steps/minibatches between printing out the loss')
 cmd:option('-eval_val_every',1000,'every how many iterations should we evaluate on validation data?')
 cmd:option('-checkpoint_dir', 'cv', 'output directory where checkpoints get written')
-cmd:option('-savefile','lstm','filename to autosave the checkpont to. Will be inside checkpoint_dir/')
+cmd:option('-savefile','scrnn_1l','filename to autosave the checkpont to. Will be inside checkpoint_dir/')
 -- GPU/CPU
-cmd:option('-gpuid',0,'which gpu to use. -1 = use CPU')
+cmd:option('-gpuid', 0,'which gpu to use. -1 = use CPU')
 cmd:option('-opencl',0,'use OpenCL (instead of CUDA)')
 cmd:text()
 
@@ -142,8 +143,8 @@ else
     protos = {}
     if opt.model == 'lstm' then
         protos.rnn = LSTM.lstm(vocab_size, opt.rnn_size, opt.num_layers, opt.dropout)
---        graph.dot(protos.rnn.fg, "lstm", "/home/nghia/char-rnn_fw")
---        graph.dot(protos.rnn.bg, "lstm", "/home/nghia/char-rnn_bw")
+        graph.dot(protos.rnn.fg, "lstm", "/home/nghia/char-rnn_fw")
+        graph.dot(protos.rnn.bg, "lstm", "/home/nghia/char-rnn_bw")
     elseif opt.model == 'scrnn' then
         protos.rnn = SCRNN.scrnn(vocab_size, opt.rnn_size, 0.95, opt.num_layers, opt.dropout)
     elseif opt.model == 'gru' then
@@ -294,7 +295,7 @@ function feval(x)
         
         ---- Nghia: output lst will be {c1,h1,c2,h2..., ct,ht,prediction}
         -- init state is {c1,h1,c2,h2...,ct,ht}
-        local lst = clones.rnn[t]:forward{x[{{}, t}], unpack(rnn_state[t-1])}
+        local lst = clones.rnn[t]:forward{x[{{}, t}],unpack(rnn_state[t-1])}
         rnn_state[t] = {}
         for i=1,#init_state do
             -- insert(a,b) is like a.append(b) in python 
@@ -326,6 +327,7 @@ function feval(x)
     ------------------------ misc ----------------------
     -- transfer final state to initial state (BPTT)
     init_state_global = rnn_state[#rnn_state] -- NOTE: I don't think this needs to be a clone, right?
+--    init_state_global = clone_list(rnn_state[#rnn_state]) -- NOTE: I don't think this needs to be a clone, right?
     -- clip gradient element-wise
     grad_params:clamp(-opt.grad_clip, opt.grad_clip)
     return loss, grad_params
@@ -369,7 +371,10 @@ for i = 1, iterations do
             print('decayed learning rate by a factor ' .. decay_factor .. ' to ' .. optim_state.learningRate)
         end
     end
-
+    
+    if (i % 100 == 0) then
+        error("stop here")
+    end
     -- every now and then or on last iteration
     if i % opt.eval_val_every == 0 or i == iterations then
         -- evaluate loss on validation data

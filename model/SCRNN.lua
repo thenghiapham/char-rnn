@@ -7,7 +7,7 @@ function SCRNN.scrnn(input_size, rnn_size, alpha, n, dropout)
   local inputs = {}
   table.insert(inputs, nn.Identity()()) -- x
   for L = 1,n do
-    table.insert(inputs, nn.Identity()()) -- prev_c[L]
+    table.insert(inputs, nn.Identity()()) -- prev_s[L]
     table.insert(inputs, nn.Identity()()) -- prev_h[L]
   end
 
@@ -28,9 +28,11 @@ function SCRNN.scrnn(input_size, rnn_size, alpha, n, dropout)
     end
     -- evaluate the input sums at once for efficiency
     local i2s = nn.Linear(input_size_L, rnn_size)(x)
+    local s2s = nn.MulConstant(alpha, true)(prev_s)
+    
     local ai2s = nn.MulConstant(1 - alpha)(i2s)
-    local s2s = nn.MulConstant(alpha)(prev_s)
     local next_s = nn.CAddTable()({ai2s, s2s})
+
     
     local i2h = nn.Linear(input_size_L, rnn_size)(x)
     local s2h = nn.Linear(rnn_size, rnn_size)(prev_h)

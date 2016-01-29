@@ -30,7 +30,7 @@ print("output:")
 print(output)
 
 i = -1
-local gradOutput = output:new()
+local gradOutput = output.new()
 gradOutput:apply(function()
   i = i + 1
   return i
